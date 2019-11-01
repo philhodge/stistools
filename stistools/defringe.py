@@ -6,6 +6,7 @@ import datetime
 import os
 import textwrap
 import re
+import warnings
 
 import numpy as np
 
@@ -44,20 +45,33 @@ def defringe(science_file, fringe_flat, overwrite=True, verbose=True):
 
     Returns
     -------
-    drj_filename : str
+    outname : str
         The name of the output file.
     """
 
-    if science_file.endswith("_raw.fits"):
-        print('Warning:  The science file name ends with "_raw.fits".  If this '
-              'really is raw data, this script will fail.', flush=True)
+    if re.match(r'.*_raw\.fits.*', os.path.basename(science_file), re.IGNORECASE):
+        warnings.warn('The science file name ends with "_raw.fits".  If this '
+              'really is raw data, this script will fail.', stacklevel=2)
 
     # Define new filename:
     science_file = os.path.normpath(expandFileName(science_file))  # Expand IRAF and UNIX $VARS
     sci_dir, sci_filename = os.path.split(science_file)
-    sci_root = re.split('\.fits.*', sci_filename, flags=re.IGNORECASE)[0].rsplit('_',1)[0]
-    drj_filename = os.path.join(sci_dir, sci_root + '_drj.fits')
-    if science_file == drj_filename:
+    sci_root = re.split(r'\.fits.*', sci_filename, flags=re.IGNORECASE)[0].rsplit('_',1)[0]
+    # Determine new output filetype extension:
+    hdr0 = fits.getheader(science_file, ext=0)
+    if hdr0.get('CRCORR', '') == 'COMPLETE' and not hdr0.get('X2DCORR', '') == 'COMPLETE':
+        filetype_ext = 'drj'  # equivalent to crj
+    elif hdr0.get('CRCORR', '') == 'COMPLETE' and hdr0.get('X2DCORR', '') == 'COMPLETE':
+        filetype_ext = 's2d'  # equivalent to sx2
+    elif not hdr0.get('CRCORR', '') == 'COMPLETE' and not hdr0.get('X2DCORR', '') == 'COMPLETE':
+        filetype_ext = 'fld'  # equivalent to flt
+    elif not hdr0.get('CRCORR', '') == 'COMPLETE' and hdr0.get('X2DCORR', '') == 'COMPLETE':
+        filetype_ext = 'dx2'  # equivalent to x2d
+    else:
+        filetype_ext = 'dfg'
+    # Combine into new output filename:
+    outname = os.path.join(sci_dir, '{}_{}.fits'.format(sci_root, filetype_ext))
+    if science_file == outname:
         raise RuntimeError('The input and output file names cannot be the same.')
 
     # Get the data from the fringe flat file:
@@ -166,13 +180,16 @@ def defringe(science_file, fringe_flat, overwrite=True, verbose=True):
 
         # Write to a new FITS file
         # Remove old version, if it exists:
-        if os.path.exists(drj_filename) and overwrite:
-            print('Removing and recreating {}'.format(drj_filename))
-            os.remove(drj_filename)
-        science_hdu.writeto(drj_filename)
-        print('Defringed science data saved to {}'.format(drj_filename))
+        if os.path.exists(outname) and overwrite:
+            print('Removing and recreating {}'.format(outname))
+            os.remove(outname)
+        elif os.path.exists(outname):
+            raise FileExistsError('Output file already exists (move or re-run with "clobber"):'
+                                  '  {}'.format(outname))
+        science_hdu.writeto(outname)
+        print('Defringed science data saved to {}'.format(outname))
 
-    return drj_filename
+    return outname
 
 
 def parse_args():
