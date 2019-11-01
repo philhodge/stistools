@@ -59,13 +59,13 @@ def defringe(science_file, fringe_flat, overwrite=True, verbose=True):
     sci_root = re.split(r'\.fits.*', sci_filename, flags=re.IGNORECASE)[0].rsplit('_',1)[0]
     # Determine new output filetype extension:
     hdr0 = fits.getheader(science_file, ext=0)
-    if hdr0.get('CRCORR', '') == 'COMPLETE' and not hdr0.get('X2DCORR', '') == 'COMPLETE':
+    if hdr0.get('CRCORR', '') == 'COMPLETE' and hdr0.get('X2DCORR', '') != 'COMPLETE':
         filetype_ext = 'drj'  # equivalent to crj
     elif hdr0.get('CRCORR', '') == 'COMPLETE' and hdr0.get('X2DCORR', '') == 'COMPLETE':
         filetype_ext = 's2d'  # equivalent to sx2
-    elif not hdr0.get('CRCORR', '') == 'COMPLETE' and not hdr0.get('X2DCORR', '') == 'COMPLETE':
+    elif hdr0.get('CRCORR', '') != 'COMPLETE' and hdr0.get('X2DCORR', '') != 'COMPLETE':
         filetype_ext = 'fld'  # equivalent to flt
-    elif not hdr0.get('CRCORR', '') == 'COMPLETE' and hdr0.get('X2DCORR', '') == 'COMPLETE':
+    elif hdr0.get('CRCORR', '') != 'COMPLETE' and hdr0.get('X2DCORR', '') == 'COMPLETE':
         filetype_ext = 'dx2'  # equivalent to x2d
     else:
         filetype_ext = 'dfg'
